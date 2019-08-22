@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Thu Aug 22 08:53:51 2019
+
+@author: igjano
+"""
+
+"""Descripción del reto:
+    
+    Mejorar la convergencia del optimiador SGD
+    para un problema de regresión lineal.
+    
+    Formulación del escenario:
+        
+        Dados dos vectores X e Y suponemos
+        que están relacionados de forma lineal, esto es
+        Y = m*X + b
+        
+        Disponemos de pares de observaciones [X,Y] pero desconocemos
+        m y b
+        
+        Tratanos de obtener m y b mediante SGD, para ello optimizaremos
+        la functión de coste:
+            L = mean((y_pred - y_true)**2), 
+            donde
+            y_pred = m_p*X + b_p, con m_p y b_p candidatos a m y b
+            y_true = Y
+            
+     Fundamentos de SGD:
+         
+         Se inician m_p y b_p a unos valores candidatos iniciales, típicamente
+         de manera aleatoria
+         
+         Se calculan los gradientes de L con respecto a estos valores
+         
+         Se actualizan los valores m_p y b_p según la regla:
+             m_p = m_p - grad(L,m)*lr, con lr el learning rate
+             b_p = b_p - grad(L,b)*lr
+             
+         Se repite el proceso en batches y por epochs para un número finito de 
+         iteraciones o hasta que se satisfaga una condición de parada, si es
+         definida
+         
+     Reto:
+         
+         Se generan valores de X e Y, con unos m y b dados
+         
+         En el primer experimento, X pertenece al intervalo
+         [-1,1] y el SGD encuentra los valores óptimos de m y b
+         
+         En el segundo experimento, X pertenece al intervalo [-100,100]
+         y el mismo SGD no consigue encontrar m y b
+         
+         El reto consiste en conseguir valores óptimos de m y b también en el 
+         segundo experimento, cumpliendo la siguientes condiciones:
+             
+                1. No se pueden cambiar el número de muestras M
+                2. No se puede cambiar las valores reales de m y b
+                3. No se puede cambiar el leraning rate
+                4. No se puede cambiar el número de epochs
+                5. No se puede cambiar el optimizador
+                6. No se puede cambiar la función de coste
+                7. Se puede cambiar el batch size
+                8. Se pueden pre-procesar los datos
+                9. Se pueden cambiar los valores iniciales de m_p y b_p
+                10. Ambos experimentos deben ser iguales, a excepción de los
+                    valores de X e Y (en el primero X e [-1,1] y en el segundo
+                    X e [-100,100]). Esto quiere decir, que si se cambia el
+                    batch size, este debe ser igual en los dos expermientos, o 
+                    si se pre-procesan los datos, la rutina de pre-procesado
+                    debe ser la misma.
+                
+"""            
+import numpy as np
+from random import shuffle
+import random
+
+#%% Optimizador SGD
+def coste(y_pred,y_true):
+    """Compute mean(y_pred - y_true)**2
+    """
+    return np.mean((y_pred - y_true)**2)
+
+def gradientes(y_pred,y_true,X):
+    return [np.mean((y_pred - y_true)*X), np.mean((y_pred - y_true))]
+
+class Optimizador_GD():
+    """Implementa SGF
+    """
+    def __init__(self,gradient_function,lr=0.01):
+        print("Optimizador SGD iniciado")
+        self.lr = lr
+        self.grad_f = gradient_function
+        self.grads = []
+        self.iter = 1
+    def update_params(self,params,y_true,y_pred,X):
+        print("Optimizador SGD, iteración: ",self.iter)
+        _grads = self.grad_f(y_pred,y_true,X)
+        self.grads.append(_grads)
+        self.iter +=1
+        return [params[0]-_grads[0]*lr,params[1]-_grads[1]*lr]
+    def restart(self,):
+        print("Optimizador SGD reiniciado")
+        self.iter = 1
+        self.grads = []
+                    
+#%% EXP
+def experimento(SCALE,
+                opt,
+                M,
+                m,b,
+                EPOCHS,
+                BATCH_SIZE): 
+    
+    random.seed(30)
+    np.random.seed(0)         
+    
+    X = (2*np.random.rand(M) -  1)*SCALE
+    Y = X*m + b 
+    indexes = np.linspace(0,M-1,M)      
+    
+    m_p = np.random.rand(1)
+    b_p = np.random.rand(1)
+    
+
+    for e in range(EPOCHS):
+        shuffle(indexes)
+        for i in range(int(M/BATCH_SIZE)):
+            ii = indexes[i*BATCH_SIZE:(i+1)*BATCH_SIZE].astype('int32')
+            x_b        = X[ii]
+            y_true     = Y[ii]
+            y_pred     = m_p*x_b + b_p
+            upd_params = opt.update_params([m_p,b_p],y_true,y_pred,x_b)
+            m_p      = upd_params[0]
+            b_p      = upd_params[1]
+    return [m_p,b_p]
+
+#%% OPTIMIZADOR
+lr = 0.01
+opt  = Optimizador_GD(lr=lr,gradient_function=gradientes)
+#%% PARAMETROS REALES
+m = 4.5
+b = 2.1
+#CONFIG
+M=1000
+EPOCHS = 1000
+BATCH_SIZE = 100
+#%% EXPERIMENTO 1----------------------------------------
+[m_opt_1,b_opt_1] = experimento(SCALE=1,
+                            opt=opt,
+                            M=M,
+                            m=m,b=b,
+                            EPOCHS = EPOCHS,
+                            BATCH_SIZE = BATCH_SIZE)
+
+#%% EXPERIMENTO 2----------------------------------------
+opt.restart()
+[m_opt_2,b_opt_2] = experimento(SCALE=100,
+                            opt=opt,
+                            M=M,
+                            m=m,b=b,
+                            EPOCHS = EPOCHS,
+                            BATCH_SIZE = BATCH_SIZE)
+
+#%% Reslutados
+print("Resultados de optimziación para EXP 1:")
+print("m_opt: {}".format(m_opt_1))
+print("b_opt: {}".format(b_opt_1))
+print("Resultados de optimziación para EXP 2:")
+print("m_opt: {}".format(m_opt_2))
+print("b_opt: {}".format(b_opt_2))
